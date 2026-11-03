@@ -3,10 +3,27 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useCalls } from "@/hooks/use-calls";
 import { formatMmSs } from "@/lib/duration";
 import { formatDateTime } from "@/lib/leads-format";
+import { useState, useEffect } from "react";
+import { Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const PAGE_SIZE = 20;
 
@@ -18,7 +35,9 @@ export default function CallsPage() {
   // Every change goes through the URL. Changing a filter resets to page 1.
   function setParam(changes: Record<string, string | null>, resetPage = true) {
     const next = new URLSearchParams(sp);
-    Object.entries(changes).forEach(([k, v]) => (v ? next.set(k, v) : next.delete(k)));
+    Object.entries(changes).forEach(([k, v]) =>
+      v ? next.set(k, v) : next.delete(k),
+    );
     if (resetPage) next.delete("page");
     setSp(next);
   }
@@ -36,7 +55,39 @@ export default function CallsPage() {
     branch_id: sp.get("branch_id") ? Number(sp.get("branch_id")) : undefined,
   };
   const hasFilters = Object.values(filters).some((v) => v !== undefined);
+  // search box: update the URL 400 ms after typing stops
+  const [searchText, setSearchText] = useState(sp.get("search") ?? "");
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if ((sp.get("search") ?? "") !== searchText.trim())
+        setParam({ search: searchText.trim() || null });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchText]);
 
+  // date presets use Nepal calendar days
+  const nptDay = (offset = 0) => {
+    const d = new Date(Date.now() + 5.75 * 3600_000 - offset * 86400_000);
+    return d.toISOString().slice(0, 10);
+  };
+  const preset = sp.get("preset") ?? "";
+  function applyPreset(p: string) {
+    if (p === "today")
+      setParam({ preset: p, from_date: nptDay(), to_date: nptDay() });
+    else if (p === "7d")
+      setParam({ preset: p, from_date: nptDay(6), to_date: nptDay() });
+    else if (p === "month")
+      setParam({
+        preset: p,
+        from_date: nptDay().slice(0, 8) + "01",
+        to_date: nptDay(),
+      });
+    else setParam({ preset: "custom" });
+  }
+  function clearAll() {
+    setSearchText("");
+    setSp(new URLSearchParams());
+  }
   const { data, isLoading, isError, refetch } = useCalls({
     ...filters,
     page,
@@ -50,30 +101,106 @@ export default function CallsPage() {
 
   function SortIcon({ field }: { field: string }) {
     if (ordering === field) return <ArrowUp className="ml-1 inline size-3" />;
-    if (ordering === `-${field}`) return <ArrowDown className="ml-1 inline size-3" />;
+    if (ordering === `-${field}`)
+      return <ArrowDown className="ml-1 inline size-3" />;
     return null;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-brand font-mono text-[11px] font-bold tracking-wider uppercase">CRM Workspace</p>
-        <h1 className="font-headline mt-1 text-3xl font-semibold tracking-tight">Calls</h1>
+        <p className="text-brand font-mono text-[11px] font-bold tracking-wider uppercase">
+          CRM Workspace
+        </p>
+        <h1 className="font-headline mt-1 text-3xl font-semibold tracking-tight">
+          Calls
+        </h1>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative max-w-sm min-w-[13rem] flex-1">
+          <Search className="text-muted-foreground absolute top-2.5 left-3 size-4" />
+          <Input
+            placeholder="Search lead, phone, caller, notes"
+            className="rounded-full pl-9"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+        </div>
+        <Select
+          value={sp.get("direction") ?? "all"}
+          onValueChange={(v) => setParam({ direction: v === "all" ? null : v })}
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All directions</SelectItem>
+            <SelectItem value="inbound">Inbound</SelectItem>
+            <SelectItem value="outbound">Outbound</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={preset || "all"}
+          onValueChange={(v) =>
+            v === "all"
+              ? setParam({ preset: null, from_date: null, to_date: null })
+              : applyPreset(v)
+          }
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any date</SelectItem>
+            <SelectItem value="today">Today</SelectItem>
+            <SelectItem value="7d">Last 7 days</SelectItem>
+            <SelectItem value="month">This month</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+        {preset === "custom" && (
+          <>
+            <Input
+              type="date"
+              className="w-40"
+              value={sp.get("from_date") ?? ""}
+              onChange={(e) => setParam({ from_date: e.target.value || null })}
+            />
+            <Input
+              type="date"
+              className="w-40"
+              value={sp.get("to_date") ?? ""}
+              onChange={(e) => setParam({ to_date: e.target.value || null })}
+            />
+          </>
+        )}
+        {(hasFilters || preset) && (
+          <Button variant="ghost" onClick={clearAll}>
+            <X /> Clear filters
+          </Button>
+        )}
+      </div>
+      
       <div className="bg-card overflow-hidden rounded-2xl border">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort("call_timestamp")}>
+                <TableHead
+                  className="cursor-pointer"
+                  onClick={() => toggleSort("call_timestamp")}
+                >
                   When <SortIcon field="call_timestamp" />
                 </TableHead>
                 <TableHead>Direction</TableHead>
                 <TableHead>Lead</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Logged by</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort("duration_seconds")}>
+                <TableHead
+                  className="cursor-pointer"
+                  onClick={() => toggleSort("duration_seconds")}
+                >
                   Duration <SortIcon field="duration_seconds" />
                 </TableHead>
                 <TableHead>Outcome</TableHead>
@@ -92,8 +219,14 @@ export default function CallsPage() {
               {isError && (
                 <TableRow>
                   <TableCell colSpan={8} className="py-14 text-center">
-                    <p className="text-destructive text-sm">Could not load calls.</p>
-                    <Button variant="outline" className="mt-3" onClick={() => refetch()}>
+                    <p className="text-destructive text-sm">
+                      Could not load calls.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="mt-3"
+                      onClick={() => refetch()}
+                    >
                       Retry
                     </Button>
                   </TableCell>
@@ -104,32 +237,50 @@ export default function CallsPage() {
                   <TableCell colSpan={8} className="py-14 text-center">
                     <PhoneCall className="text-muted-foreground mx-auto size-8 opacity-40" />
                     <p className="text-muted-foreground mt-2 text-sm">
-                      {hasFilters ? "No calls match these filters." : "No calls yet."}
+                      {hasFilters
+                        ? "No calls match these filters."
+                        : "No calls yet."}
                     </p>
                   </TableCell>
                 </TableRow>
               )}
               {rows.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell className="whitespace-nowrap">{formatDateTime(c.call_timestamp)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {formatDateTime(c.call_timestamp)}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="capitalize">
                       {c.direction}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Link to={`/leads/${c.lead}`} className="font-semibold hover:underline">
+                    <Link
+                      to={`/leads/${c.lead}`}
+                      className="font-semibold hover:underline"
+                    >
                       {c.lead_name}
                     </Link>
-                    <p className="text-muted-foreground font-mono text-xs">{c.lead_reference_number}</p>
+                    <p className="text-muted-foreground font-mono text-xs">
+                      {c.lead_reference_number}
+                    </p>
                   </TableCell>
                   <TableCell>{c.phone_number}</TableCell>
                   <TableCell>{c.created_by_name || "—"}</TableCell>
-                  <TableCell className="tabular-nums">{formatMmSs(c.duration_seconds)}</TableCell>
-                  <TableCell className="capitalize">{c.outcome || "—"}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {formatMmSs(c.duration_seconds)}
+                  </TableCell>
+                  <TableCell className="capitalize">
+                    {c.outcome || "—"}
+                  </TableCell>
                   <TableCell>
                     {c.recording_url ? (
-                      <a href={c.recording_url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                      <a
+                        href={c.recording_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-brand hover:underline"
+                      >
                         Listen
                       </a>
                     ) : (
