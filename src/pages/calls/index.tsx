@@ -28,6 +28,9 @@ import { useCalls, useCallsSummary } from "@/hooks/use-calls";
 import { Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { callsService } from "@/services/calls.service";
+import { useAuth } from "@/context/auth";
+import { useUsers } from "@/hooks/use-users";
+import { useBranches } from "@/hooks/use-branches";
 
 const PAGE_SIZE = 20;
 
@@ -99,6 +102,10 @@ export default function CallsPage() {
     ordering,
   });
   const summaryQ = useCallsSummary(filters);
+  const { user } = useAuth();
+  const isStaff = !!(user?.is_staff || user?.is_superuser);
+  const usersQ = useUsers(1, 100);
+  const branchesQ = useBranches(1, 100, "", isStaff);
   const [exporting, setExporting] = useState(false);
   async function exportCsv() {
     setExporting(true);
@@ -163,6 +170,44 @@ export default function CallsPage() {
           </SelectContent>
         </Select>
         <Select
+          value={sp.get("created_by") ?? "all"}
+          onValueChange={(v) =>
+            setParam({ created_by: v === "all" ? null : v })
+          }
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All callers</SelectItem>
+            {(usersQ.data?.results ?? []).map((u) => (
+              <SelectItem key={u.id} value={String(u.id)}>
+                {u.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {isStaff && (
+          <Select
+            value={sp.get("branch_id") ?? "all"}
+            onValueChange={(v) =>
+              setParam({ branch_id: v === "all" ? null : v })
+            }
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All branches</SelectItem>
+              {(branchesQ.data?.results ?? []).map((b) => (
+                <SelectItem key={b.id} value={String(b.id)}>
+                  {b.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select
           value={preset || "all"}
           onValueChange={(v) =>
             v === "all"
@@ -212,8 +257,6 @@ export default function CallsPage() {
           {exporting ? <Loader2 className="animate-spin" /> : <Download />}{" "}
           Export CSV
         </Button>
-
-        
       </div>
       <CallsSummaryCards data={summaryQ.data} loading={summaryQ.isLoading} />
       <div className="bg-card overflow-hidden rounded-2xl border">
