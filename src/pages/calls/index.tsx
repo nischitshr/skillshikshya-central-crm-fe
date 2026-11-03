@@ -70,6 +70,7 @@ export default function CallsPage() {
         setParam({ search: searchText.trim() || null });
     }, 400);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText]);
 
   // date presets use Nepal calendar days
