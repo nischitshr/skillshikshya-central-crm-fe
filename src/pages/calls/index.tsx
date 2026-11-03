@@ -25,6 +25,9 @@ import {
 } from "@/components/ui/select";
 import { CallsSummaryCards } from "@/components/calls-summary";
 import { useCalls, useCallsSummary } from "@/hooks/use-calls";
+import { Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { callsService } from "@/services/calls.service";
 
 const PAGE_SIZE = 20;
 
@@ -96,6 +99,23 @@ export default function CallsPage() {
     ordering,
   });
   const summaryQ = useCallsSummary(filters);
+  const [exporting, setExporting] = useState(false);
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const blob = await callsService.exportCsv({ ...filters, ordering });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `calls-${new Date(Date.now() + 5.75 * 3600_000).toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Could not export calls");
+    } finally {
+      setExporting(false);
+    }
+  }
   const rows = data?.results ?? [];
   const count = data?.count ?? 0;
   const from = count === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -182,6 +202,18 @@ export default function CallsPage() {
             <X /> Clear filters
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          className="ml-auto"
+          onClick={exportCsv}
+          disabled={exporting}
+        >
+          {exporting ? <Loader2 className="animate-spin" /> : <Download />}{" "}
+          Export CSV
+        </Button>
+
+        
       </div>
       <CallsSummaryCards data={summaryQ.data} loading={summaryQ.isLoading} />
       <div className="bg-card overflow-hidden rounded-2xl border">
