@@ -11,7 +11,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCalls } from "@/hooks/use-calls";
 import { formatMmSs } from "@/lib/duration";
 import { formatDateTime } from "@/lib/leads-format";
 import { useState, useEffect } from "react";
@@ -24,6 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CallsSummaryCards } from "@/components/calls-summary";
+import { useCalls, useCallsSummary } from "@/hooks/use-calls";
 
 const PAGE_SIZE = 20;
 
@@ -94,6 +95,7 @@ export default function CallsPage() {
     page_size: PAGE_SIZE,
     ordering,
   });
+  const summaryQ = useCallsSummary(filters);
   const rows = data?.results ?? [];
   const count = data?.count ?? 0;
   const from = count === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -181,7 +183,7 @@ export default function CallsPage() {
           </Button>
         )}
       </div>
-      
+      <CallsSummaryCards data={summaryQ.data} loading={summaryQ.isLoading} />
       <div className="bg-card overflow-hidden rounded-2xl border">
         <div className="overflow-x-auto">
           <Table>
