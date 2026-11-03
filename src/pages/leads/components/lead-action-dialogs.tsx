@@ -25,6 +25,7 @@ import { useDataSource } from "@/context/data-source";
 import { CALL_OUTCOMES, COUNSELORS, counselorName } from "@/data/lead-lookups";
 import { formatDateToNepalIso, toNepalIso } from "@/lib/leads-format";
 import { useAddCall, useAddFollowup, useAssignLead } from "@/hooks/use-leads";
+import { apiErrorMessage } from "@/lib/api";
 import { useCounselors } from "@/hooks/use-users";
 
 export type LeadAction = "log_call" | "follow_up" | "assign" | null;
@@ -161,6 +162,10 @@ export function LeadActionDialogs({ action, lead, onClose }: Props) {
         onSuccess: () => {
           setCall(EMPTY_CALL);
           onClose();
+        },
+        onError: (e) => {
+          const msg = apiErrorMessage(e, "Could not log call");
+          if (/duration|minute/i.test(msg)) setDurationError(msg);
         },
       },
     );
